@@ -129,6 +129,7 @@ impl Emulation for WlrootsEmulation {
         handle: EmulationHandle,
     ) -> Result<(), EmulationError> {
         if let Some(virtual_input) = self.state.input_for_client.get(&handle) {
+            let event_debug = format!("{event:?}");
             if self.last_flush_failed {
                 match self.queue.flush() {
                     Err(WaylandError::Io(e)) if e.kind() == io::ErrorKind::WouldBlock => {
@@ -137,7 +138,7 @@ impl Emulation for WlrootsEmulation {
                          * will overwhelm the output buffer and leave the
                          * wayland connection in a broken state
                          */
-                        log::warn!("can't keep up, discarding event: ({handle}) - {event:?}");
+                        log::warn!("can't keep up, discarding event: ({handle}) - {event_debug}");
                         return Ok(());
                     }
                     _ => {}
@@ -145,11 +146,11 @@ impl Emulation for WlrootsEmulation {
             }
             virtual_input
                 .consume_event(event)
-                .unwrap_or_else(|_| panic!("failed to convert event: {event:?}"));
+                .unwrap_or_else(|_| panic!("failed to convert event: {event_debug}"));
             match self.queue.flush() {
                 Err(WaylandError::Io(e)) if e.kind() == io::ErrorKind::WouldBlock => {
                     self.last_flush_failed = true;
-                    log::warn!("can't keep up, discarding event: ({handle}) - {event:?}");
+                    log::warn!("can't keep up, discarding event: ({handle}) - {event_debug}");
                 }
                 Err(WaylandError::Protocol(e)) => panic!("wayland protocol violation: {e}"),
                 Ok(()) => self.last_flush_failed = false,
@@ -245,6 +246,10 @@ impl VirtualInput {
                         .modifiers(mods_depressed, mods_latched, mods_locked, group);
                 }
             },
+            Event::Clipboard(_) => {
+                // Clipboard events are not supported by wlroots emulation
+                log::debug!("ignoring clipboard event in wlroots emulation");
+            }
         }
         Ok(())
     }

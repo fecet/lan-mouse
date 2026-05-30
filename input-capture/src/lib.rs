@@ -14,6 +14,7 @@ use input_event::{Event, KeyboardEvent, scancode};
 pub use error::{CaptureCreationError, CaptureError, InputCaptureError};
 
 pub mod error;
+pub mod clipboard;
 
 #[cfg(libei)]
 mod libei;
@@ -35,7 +36,7 @@ mod dummy;
 
 pub type CaptureHandle = u64;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum CaptureEvent {
     /// capture on this capture handle is now active
     Begin,
@@ -265,7 +266,7 @@ impl Stream for InputCapture {
                 swap(&mut self.position_map, &mut position_map);
                 {
                     for &id in position_map.get(&pos).expect("position") {
-                        self.pending.push_back((id, event));
+                        self.pending.push_back((id, event.clone()));
                     }
                 }
                 swap(&mut self.position_map, &mut position_map);

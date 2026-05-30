@@ -30,6 +30,8 @@ mod macos;
 mod dummy;
 mod error;
 
+pub mod clipboard;
+
 pub type EmulationHandle = u64;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

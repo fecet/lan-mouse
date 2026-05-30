@@ -479,6 +479,10 @@ impl Emulation for MacOSEmulation {
                     modifier_event(self.event_source.clone(), self.modifier_state.get());
                 }
             },
+            Event::Clipboard(_) => {
+                // Clipboard events are not emulated through this backend
+                // They are handled directly by the clipboard emulation module
+            }
         }
         // FIXME
         Ok(())

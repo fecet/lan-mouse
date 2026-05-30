@@ -52,6 +52,8 @@ pub(crate) enum EmulationEvent {
     EmulationEnabled,
     /// capture should be released
     ReleaseNotify,
+    /// clipboard data received from remote
+    ClipboardReceived(input_event::ClipboardEvent),
 }
 
 enum EmulationRequest {
@@ -59,6 +61,7 @@ enum EmulationRequest {
     Release(SocketAddr),
     ChangePort(u16),
     Terminate,
+    SendClipboard(SocketAddr, input_event::ClipboardEvent),
 }
 
 impl Emulation {
@@ -86,6 +89,12 @@ impl Emulation {
     pub(crate) fn send_leave_event(&self, addr: SocketAddr) {
         self.request_tx
             .send(EmulationRequest::Release(addr))
+            .expect("channel closed");
+    }
+
+    pub(crate) fn send_clipboard(&self, addr: SocketAddr, clipboard: input_event::ClipboardEvent) {
+        self.request_tx
+            .send(EmulationRequest::SendClipboard(addr, clipboard))
             .expect("channel closed");
     }
 
@@ -148,8 +157,18 @@ impl ListenTask {
                                 self.emulation_proxy.remove(addr);
                                 self.listener.reply(addr, ProtoEvent::Ack(0)).await;
                             }
-                            ProtoEvent::Input(input_event) => {
-                                self.emulation_proxy.consume(input_event, addr);
+                            ProtoEvent::Input(event) => {
+                                // Check if this is a clipboard event
+                                match &event {
+                                    input_event::Event::Clipboard(clipboard_event) => {
+                                        // Send clipboard event directly to service for processing
+                                        self.event_tx.send(EmulationEvent::ClipboardReceived(clipboard_event.clone())).expect("channel closed");
+                                    }
+                                    _ => {
+                                        // Handle normal input events through emulation proxy
+                                        self.emulation_proxy.consume(event, addr);
+                                    }
+                                }
                             }
                             ProtoEvent::Ping => self.listener.reply(addr, ProtoEvent::Pong(self.emulation_proxy.emulation_active.get())).await,
                             _ => {}
@@ -180,6 +199,11 @@ impl ListenTask {
                         self.event_tx.send(EmulationEvent::PortChanged(result)).expect("channel closed");
                     }
                     EmulationRequest::Terminate => break,
+                    // send clipboard to a specific address
+                    EmulationRequest::SendClipboard(addr, clipboard_event) => {
+                        let proto_event = ProtoEvent::Input(input_event::Event::Clipboard(clipboard_event));
+                        self.listener.reply_clipboard(addr, proto_event).await;
+                    }
                 },
                 _ = interval.tick() => {
                     last_response.retain(|&addr,instant| {
