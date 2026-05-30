@@ -34,7 +34,7 @@ lan-mouse-cli = { path = "lan-mouse-cli", version = "0.2.0" }
 lan-mouse-gtk = { path = "lan-mouse-gtk", version = "0.2.0", optional = true }
 lan-mouse-ipc = { path = "lan-mouse-ipc", version = "0.2.0" }
 lan-mouse-proto = { path = "lan-mouse-proto", version = "0.2.0" }
-shadow-rs = { version = "1.2.0", features = ["metadata"] }
+shadow-rs = { version = "1.2.0", default-features = false, features = ["build", "tzdb", "metadata"] }
 
 hickory-resolver = "0.25.2"
 toml = "0.8"

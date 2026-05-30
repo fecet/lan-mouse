@@ -3873,7 +3873,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d24d6bcc7f734a4091ecf8d7a64c5f7d7066f45585c1861eba06449909609c8a"
 dependencies = [
- "bitflags 2.9.1",
+ "bitflags 2.11.0",
  "widestring",
  "windows-sys 0.52.0",
 ]
