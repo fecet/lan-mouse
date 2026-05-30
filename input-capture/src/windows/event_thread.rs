@@ -6,6 +6,7 @@ use std::default::Default;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::mpsc::error::TrySendError;
 use windows::Win32::Foundation::{FALSE, HWND, LPARAM, LRESULT, RECT, WPARAM};
@@ -122,6 +123,8 @@ thread_local! {
     static PREV_POS: Cell<Option<(i32, i32)>> = const { Cell::new(None) };
     /// displays and generation counter
     static DISPLAYS: RefCell<(Vec<RECT>, i32)> = const { RefCell::new((Vec::new(), 0)) };
+    /// last time displays were enumerated (throttle for the WM_DISPLAYCHANGE fallback)
+    static LAST_ENUM: Cell<Option<Instant>> = const { Cell::new(None) };
 }
 
 fn get_msg() -> Option<MSG> {
@@ -367,10 +370,21 @@ static DISPLAY_RESOLUTION_GENERATION: AtomicI32 = AtomicI32::new(1);
 
 fn update_display_regions(displays: &mut Vec<RECT>, generation: &mut i32) {
     let global_generation = DISPLAY_RESOLUTION_GENERATION.load(Ordering::Acquire);
-    if *generation != global_generation {
+    // Re-enumerate when WM_DISPLAYCHANGE advanced the generation, or periodically as a
+    // fallback. A daemon spawned into a non-interactive service session may never receive
+    // the WM_DISPLAYCHANGE broadcast, leaving the generation stuck and the capture region
+    // using stale (pre-resolution-change) screen geometry, which makes the barrier check
+    // fire continuously. The throttle keeps the steady-state cost low.
+    let now = Instant::now();
+    let stale = LAST_ENUM.with(|t| match t.get() {
+        Some(last) => now.duration_since(last) >= Duration::from_millis(500),
+        None => true,
+    });
+    if *generation != global_generation || stale {
         enumerate_displays(displays);
         log::debug!("displays: {displays:?}");
         *generation = global_generation;
+        LAST_ENUM.with(|t| t.set(Some(now)));
     }
 }
 
