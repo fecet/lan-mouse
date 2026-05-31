@@ -24,7 +24,7 @@ strip = true
 panic = "abort"
 
 [build-dependencies]
-shadow-rs = "1.2.0"
+shadow-rs = { version = "1.2.0", default-features = false, features = ["build"] }
 
 [dependencies]
 input-event = { path = "input-event", version = "0.3.0" }
