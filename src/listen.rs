@@ -13,6 +13,7 @@ use thiserror::Error;
 use tokio::{
     sync::Mutex as AsyncMutex,
     task::{JoinHandle, spawn_local},
+    time::timeout,
 };
 use webrtc_dtls::{
     config::{ClientAuthType::RequireAnyClientCert, Config, ExtendedMasterSecretType},
@@ -273,6 +274,13 @@ impl Stream for LanMouseListener {
     }
 }
 
+/// No traffic for this long means the peer vanished without a DTLS
+/// close_notify (killed or crashed). The sender pings every 500ms (see
+/// connect.rs `ping_pong`), so this reliably tells a dead peer apart from an
+/// idle-but-alive one and lets the stale connection be cleaned up instead of
+/// leaking a permanently blocked task.
+const READ_TIMEOUT: Duration = Duration::from_secs(5);
+
 async fn read_loop(
     conns: Rc<AsyncMutex<Vec<(SocketAddr, ArcConn)>>>,
     addr: SocketAddr,
@@ -287,10 +295,14 @@ async fn read_loop(
 
     loop {
         // Read first byte to determine event type
-        let n = match conn.recv(&mut b).await {
-            Ok(n) => n,
-            Err(e) => {
+        let n = match timeout(READ_TIMEOUT, conn.recv(&mut b)).await {
+            Ok(Ok(n)) => n,
+            Ok(Err(e)) => {
                 log::warn!("recv error from {}: {:?}", addr, e);
+                break;
+            }
+            Err(_) => {
+                log::info!("read timeout, closing stale connection {addr}");
                 break;
             }
         };
@@ -387,10 +399,11 @@ async fn read_loop(
     }
     log::info!("dtls client disconnected {addr:?}");
     let mut conns = conns.lock().await;
-    let index = conns
-        .iter()
-        .position(|(a, _)| *a == addr)
-        .expect("connection not found");
-    conns.remove(index);
+    // Multiple stale read_loops can exit around the same time (and an ephemeral
+    // source port may be reused); tolerate the addr already being gone instead
+    // of panicking.
+    if let Some(index) = conns.iter().position(|(a, _)| *a == addr) {
+        conns.remove(index);
+    }
     Ok(())
 }
