@@ -162,9 +162,19 @@ impl Window {
         log::debug!("creating window output: {output:?}, size: {size:?}");
         let g = &state.globals;
 
+        // Width of the capture barrier (logical px). A 1px barrier sits on the
+        // very last pixel column and can be hard to hit, especially on
+        // fractionally scaled outputs, forcing the cursor to be pushed all the
+        // way to the edge before crossing. Widening it inward makes the cursor
+        // cross a few px before the absolute edge. Tunable via LM_BARRIER_WIDTH.
+        let barrier = env::var("LM_BARRIER_WIDTH")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .filter(|&w| w >= 1)
+            .unwrap_or(1);
         let (width, height) = match pos {
-            Position::Left | Position::Right => (1, size.1 as u32),
-            Position::Top | Position::Bottom => (size.0 as u32, 1),
+            Position::Left | Position::Right => (barrier, size.1 as u32),
+            Position::Top | Position::Bottom => (size.0 as u32, barrier),
         };
         let mut file = tempfile::tempfile().unwrap();
         draw(&mut file, (width, height));

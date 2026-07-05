@@ -53,11 +53,35 @@ fn main() {
 
     let command = config.command();
     init_logging(&command);
+    install_panic_logger();
 
     if let Err(e) = run(config, command) {
         log::error!("{e}");
         process::exit(1);
     }
+}
+
+/// Route panics through the logger so they land in the daemon/service log file
+/// instead of a discarded stderr. With `panic = "abort"` a panic on any thread
+/// (e.g. the Windows capture thread on a desktop switch) takes the whole process
+/// down silently; this records the site before the runtime aborts.
+fn install_panic_logger() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "<unknown>".to_owned());
+        let msg = info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| info.payload().downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("<non-string panic payload>");
+        log::error!("PANIC at {location}: {msg}");
+        log::logger().flush();
+        default_hook(info);
+    }));
 }
 
 fn init_logging(_command: &Option<Command>) {

@@ -101,7 +101,7 @@ impl Emulation for WindowsEmulation {
                     match state {
                         // pressed
                         0 => self.kill_repeat_task(),
-                        1 => self.spawn_repeat_task(key).await,
+                        1 => self.spawn_repeat_task(key),
                         _ => {}
                     }
                     key_event(key, state)
@@ -126,7 +126,7 @@ impl Emulation for WindowsEmulation {
 }
 
 impl WindowsEmulation {
-    async fn spawn_repeat_task(&mut self, key: u32) {
+    fn spawn_repeat_task(&mut self, key: u32) {
         // there can only be one repeating key and it's
         // always the last to be pressed
         self.kill_repeat_task();
