@@ -14,10 +14,10 @@ use windows::Win32::System::StationsAndDesktops::{
 };
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    INPUT, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE,
+    INPUT, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP, KEYBD_EVENT_FLAGS,
     MOUSEEVENTF_HWHEEL, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
     MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
-    MOUSEEVENTF_WHEEL, MOUSEINPUT,
+    MOUSEEVENTF_WHEEL, MOUSEINPUT, MapVirtualKeyW, MAPVK_VSC_TO_VK, VIRTUAL_KEY,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT_0, KEYEVENTF_EXTENDEDKEY, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, SendInput,
@@ -279,7 +279,15 @@ fn key_event(key: u32, state: u8) {
     };
     let extended = scancode > 0xff;
     let scancode = scancode & 0xff;
-    let mut flags = KEYEVENTF_SCANCODE;
+
+    let vkey = unsafe {
+        MapVirtualKeyW(
+            scancode as u32,
+            MAPVK_VSC_TO_VK,
+        )
+    };
+
+    let mut flags = KEYBD_EVENT_FLAGS::default(); // Do not use KEYEVENTF_SCANCODE
     if extended {
         flags.bitor_assign(KEYEVENTF_EXTENDEDKEY);
     }
@@ -287,7 +295,7 @@ fn key_event(key: u32, state: u8) {
         flags.bitor_assign(KEYEVENTF_KEYUP);
     }
     let ki = KEYBDINPUT {
-        wVk: Default::default(),
+        wVk: VIRTUAL_KEY(vkey as u16),
         wScan: scancode,
         dwFlags: flags,
         time: 0,
