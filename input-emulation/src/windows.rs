@@ -14,10 +14,11 @@ use windows::Win32::System::StationsAndDesktops::{
 };
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    INPUT, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP, KEYBD_EVENT_FLAGS,
-    MOUSEEVENTF_HWHEEL, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
-    MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
-    MOUSEEVENTF_WHEEL, MOUSEINPUT, MapVirtualKeyW, MAPVK_VSC_TO_VK, VIRTUAL_KEY,
+    INPUT, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE,
+    KEYBD_EVENT_FLAGS, MOUSEEVENTF_HWHEEL, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
+    MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
+    MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL, MOUSEINPUT, MapVirtualKeyW, MAPVK_VSC_TO_VK,
+    VIRTUAL_KEY,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT_0, KEYEVENTF_EXTENDEDKEY, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, SendInput,
@@ -278,16 +279,21 @@ fn key_event(key: u32, state: u8) {
         None => return,
     };
     let extended = scancode > 0xff;
+
+    // Map with the 0xE0 prefix intact: extended keys (e.g. LWin = 0xE05B) have no
+    // valid VK for the bare low byte (0x5B alone maps to a bogus OEM key).
+    let vkey = unsafe { MapVirtualKeyW(scancode as u32, MAPVK_VSC_TO_VK) };
+
     let scancode = scancode & 0xff;
 
-    let vkey = unsafe {
-        MapVirtualKeyW(
-            scancode as u32,
-            MAPVK_VSC_TO_VK,
-        )
+    // VK-driven injection: with KEYEVENTF_SCANCODE set the system ignores wVk, and
+    // console windows drop wVk=0 events. Keep scancode-only as a fallback for keys
+    // the layout maps to no VK, so they degrade instead of vanishing.
+    let mut flags = if vkey == 0 {
+        KEYEVENTF_SCANCODE
+    } else {
+        KEYBD_EVENT_FLAGS::default()
     };
-
-    let mut flags = KEYBD_EVENT_FLAGS::default(); // Do not use KEYEVENTF_SCANCODE
     if extended {
         flags.bitor_assign(KEYEVENTF_EXTENDEDKEY);
     }
