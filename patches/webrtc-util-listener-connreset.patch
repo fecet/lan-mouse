@@ -1,0 +1,28 @@
+--- a/src/conn/conn_udp_listener.rs
++++ b/src/conn/conn_udp_listener.rs
+@@ -176,6 +176,25 @@
+                             }
+                         }
+                         Err(err) => {
++                            // On Windows a UDP send to a departed peer triggers an ICMP
++                            // "port unreachable" that surfaces as WSAECONNRESET on the
++                            // listener's *next* recv_from. The socket is still valid; only
++                            // that one datagram is lost. Breaking here would silently kill
++                            // the listener, so treat per-peer connection errors as
++                            // non-fatal and keep serving other remotes.
++                            if let Error::Io(e) = &err {
++                                if matches!(
++                                    e.0.kind(),
++                                    std::io::ErrorKind::ConnectionReset
++                                        | std::io::ErrorKind::ConnectionRefused
++                                ) {
++                                    log::warn!(
++                                        "ListenConfig pconn.recv_from transient error (ignored): {}",
++                                        err
++                                    );
++                                    continue;
++                                }
++                            }
+                             log::warn!("ListenConfig pconn.recv_from error: {}", err);
+                             break;
+                         }

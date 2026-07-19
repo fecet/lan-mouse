@@ -1,0 +1,11 @@
+apiVersion: vendir.k14s.io/v1alpha1
+directories:
+- contents:
+  - git:
+      commitTitle: bump util to v0.11.0
+      sha: 402fec4d079494e38e56037cf011c390846628df
+      tags:
+      - v0.12.0-18-g402fec4d
+    path: webrtc-util
+  path: vendor
+kind: LockConfig

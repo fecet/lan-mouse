@@ -116,3 +116,10 @@ icon = ["target/icon.icns"]
 identifier = "de.feschber.LanMouse"
 osx_info_plist_exts = ["build-aux/macos-lsui-element.plist"]
 resources = ["target/menubar-template.png"]
+
+# Vendored fork: read_loop treats Windows WSAECONNRESET (10054) on the listener
+# socket as non-fatal instead of killing the accept loop. See vendor/webrtc-util
+# and AGENTS.md. Covers both the direct dep and webrtc-dtls' transitive use.
+# vendor/ is materialized on demand (build.sh runs `vendir sync` + patch apply).
+[patch.crates-io]
+webrtc-util = { path = "vendor/webrtc-util" }

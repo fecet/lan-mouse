@@ -1,0 +1,20 @@
+apiVersion: vendir.k14s.io/v1alpha1
+kind: Config
+directories:
+  # vendored upstream webrtc-util (webrtc-rs monorepo, util/ subtree), carrying
+  # our one-branch listener patch on top; 不进 git(见 .gitignore).
+  # clone 后 `just vendor-webrtc-util` 物化并 apply patches/;可复现性由
+  # vendir.lock.yml 锁定的 git sha 保证. root Cargo.toml 的 [patch.crates-io]
+  # 把 webrtc-util 指向 vendor/webrtc-util(直接依赖 + webrtc-dtls 传递依赖).
+  - path: vendor
+    contents:
+      - path: webrtc-util
+        git:
+          url: https://github.com/webrtc-rs/webrtc.git
+          # 0.11.0 发布点(crates.io .cargo_vcs_info 记录的 sha)
+          ref: 402fec4d079494e38e56037cf011c390846628df
+        # monorepo 里 util/ 才是本 crate 的根
+        newRootPath: util
+        # docs/.github 不参与 cargo 编译
+        excludePaths:
+          - .github/**/*

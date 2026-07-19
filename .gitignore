@@ -1,4 +1,6 @@
 /target
+# vendored deps are materialized on demand via `vendir sync` (see vendir.yml)
+/vendor
 .gdbinit
 .idea/
 .vs/

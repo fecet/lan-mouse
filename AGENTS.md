@@ -38,6 +38,11 @@ Lan Mouse is an open-source Software KVM sharing mouse/keyboard input across loc
 - Avoid blocking; use `spawn_blocking` if needed. Prefer existing single-threaded stream handling.
 - `InputCapture` implements `Stream` and manually pumps backends—don't short-circuit this logic.
 
+## Vendored dependencies
+
+- `webrtc-util` is vendored into `vendor/webrtc-util` (gitignored, materialized on demand) and wired in via `[patch.crates-io]` in the root `Cargo.toml`, covering both the direct dependency and `webrtc-dtls`' transitive use. `../build.sh` (either target) materializes it automatically: `vendir sync` fetches the pristine crate at the git sha locked in `vendir.lock.yml`, then `patches/webrtc-util-*.patch` apply on top. Manual equivalent from this dir: `vendir sync && git apply --directory=vendor/webrtc-util patches/webrtc-util-*.patch`. Reproducibility comes from the locked sha, not a committed copy.
+- The single patch (`patches/webrtc-util-listener-connreset.patch`) changes one branch in `ListenConfig::read_loop` (`src/conn/conn_udp_listener.rs`): a `recv_from` `ConnectionReset`/`ConnectionRefused` (Windows WSAECONNRESET 10054 from an ICMP port-unreachable) is treated as non-fatal and skipped instead of breaking the accept loop and silently killing the DTLS listener. Upstream tracking issue: webrtc-rs #777. When bumping the pin, re-run the materialize step and refresh the patch if it no longer applies.
+
 ## Commands
 
 ```sh
