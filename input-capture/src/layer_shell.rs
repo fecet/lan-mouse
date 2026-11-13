@@ -784,7 +784,7 @@ impl Dispatch<WlPointer, ()> for State {
                 button,
                 state,
             } => {
-                let window = app.focused.as_ref().unwrap();
+                let Some(window) = app.focused.as_ref() else { return };
                 app.pending_events.push_back((
                     window.pos,
                     CaptureEvent::Input(Event::Pointer(PointerEvent::Button {
@@ -795,7 +795,7 @@ impl Dispatch<WlPointer, ()> for State {
                 ));
             }
             wl_pointer::Event::Axis { time, axis, value } => {
-                let window = app.focused.as_ref().unwrap();
+                let Some(window) = app.focused.as_ref() else { return };
                 if app.scroll_discrete_pending {
                     // each axisvalue120 event is coupled with
                     // a corresponding axis event, which needs to
@@ -813,7 +813,7 @@ impl Dispatch<WlPointer, ()> for State {
                 }
             }
             wl_pointer::Event::AxisValue120 { axis, value120 } => {
-                let window = app.focused.as_ref().unwrap();
+                let Some(window) = app.focused.as_ref() else { return };
                 app.scroll_discrete_pending = true;
                 app.pending_events.push_back((
                     window.pos,
