@@ -389,11 +389,11 @@ impl LayerShellInputCapture {
 
 impl State {
     fn update_output_info(&mut self, name: u32) {
-        let output = self
-            .outputs
-            .iter_mut()
-            .find(|o| o.global.name == name)
-            .expect("output not found");
+        // The same race as the xdg_output dispatch: `Done` can still be queued
+        // when the registry has already removed the output it describes.
+        let Some(output) = self.outputs.iter_mut().find(|o| o.global.name == name) else {
+            return;
+        };
         if output.has_xdg_info {
             output.info.replace(output.pending_info.clone());
             self.update_windows();
@@ -978,11 +978,18 @@ impl Dispatch<ZxdgOutputV1, u32> for State {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        let output = state
+        // An output can disappear (lid, cable) while its xdg_output events are
+        // already on the wire: the registry's GlobalRemove is dispatched first,
+        // so there is no output left to update. That is not a protocol
+        // violation, and panicking here takes the capture backend down with it.
+        let Some(output) = state
             .outputs
             .iter_mut()
             .find(|o| o.global.name == *name)
-            .expect("output");
+        else {
+            log::debug!("xdg_output event for removed output {name}: {event:?}");
+            return;
+        };
 
         log::debug!("xdg_output {name} - {event:?}");
         match event {
